@@ -1,0 +1,16 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: workload
+displayName: Prove2Me shell test workload
+description: Minimal v3 workload for testing the Prove2Me mixin
+version: "0.1.1"
+
+capabilities:
+  - type: com.docker.sandbox/sbx@1
+  - type: com.docker.sandbox/resources@1
+    config:
+      cpu: 4
+      memory: 8g
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      filename: AGENTS.md

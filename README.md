@@ -12,7 +12,7 @@ environment. Check its `mathlib_rev` before relying on the bundled cache.
 
 ## Build and test
 
-Docker Desktop, Buildx, `jq`, and `sbx` v0.45 or later are required. Build the mixin
+Docker Desktop, Buildx, and `sbx` v0.45 or later are required. Build the mixin
 from its YAML descriptor, rather than invoking its Dockerfile directly:
 
 ```sh
@@ -62,11 +62,7 @@ sbx secret set anthropic
   printf '\n'
   sbx secret set-custom --sandbox p2m-claude --host prove2.me \
     --env PROVE2ME_API_KEY --placeholder 'p2m_{rand}' --value "$P2M_KEY"
-) &&
-P2M_PLACEHOLDER="$(sbx secret ls --sandbox p2m-claude --json |
-  jq -er '.custom_secrets[] | select(.env == "PROVE2ME_API_KEY" and (.targets | index("prove2.me"))) | .placeholder')" &&
-sbx create --name p2m-claude -e "PROVE2ME_API_KEY=$P2M_PLACEHOLDER" \
-  docker.io/docker/sbx-kit-claude:2.1.267 \
+) && sbx create --name p2m-claude docker.io/docker/sbx-kit-claude:2.1.267 \
   --kit docker.io/davidnet/prove2me-mixin:0.1.2
 ```
 
@@ -74,15 +70,17 @@ If `p2m-claude` already exists from an earlier version, use a new sandbox name
 in the `--sandbox`, `--name`, and `sbx run` commands; an existing sandbox keeps
 its original kit version.
 
-The `-e` flag saves the generated placeholder in the sandbox environment;
-registering a custom secret alone does not set it in an existing sandbox. Run
-`sbx run --name p2m-claude` to start the agent. The sandbox receives a
+Run `sbx run --name p2m-claude` to start the agent. The sandbox receives a
 `p2m_` placeholder in `PROVE2ME_API_KEY`, not the real key. The agent can use
 that variable directly as `api_key` in the JSON body of
 `POST https://prove2.me/api/v1/agent/refresh`. Docker's proxy replaces the
 placeholder on the outbound request to `prove2.me`. This avoids creating a
 `credentials.json` file. Ask the agent to confirm refresh succeeds before
 mission work.
+
+If you add the custom secret to an existing sandbox, Docker says to set its
+generated placeholder in the sandbox environment separately. See
+[Set environment variables](https://docs.docker.com/ai/sandboxes/usage/#set-environment-variables).
 
 The `--value` command avoids shell history, but the real key can briefly appear
 in the host process list. If it is in 1Password or AWS Secrets Manager, use

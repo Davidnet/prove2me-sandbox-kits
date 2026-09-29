@@ -3,7 +3,7 @@ schemaVersion: "3"
 kind: workload
 displayName: Prove2Me shell test workload
 description: Minimal v3 workload for testing the Prove2Me mixin
-version: "0.1.1"
+version: "0.1.2"
 
 capabilities:
   - type: com.docker.sandbox/sbx@1

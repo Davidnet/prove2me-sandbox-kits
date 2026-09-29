@@ -24,12 +24,15 @@ the proof evolves, fetch newly added imports the same way. Prefer specific
 Mathlib imports; `import Mathlib` pulls in almost the entire cache. If a
 module has no prebuilt cache, let Lake compile it and its dependencies locally.
 
-Follow the upstream `references/setup.md` credential flow. The Prove2Me API
-key belongs in the workspace's gitignored `credentials.json`; exchange it only
-with `POST https://prove2.me/api/v1/agent/refresh`, using a JSON body with
-`api_key`. Do not print or commit credentials or tokens. The access token from
-that response is used as a Bearer token for protected endpoints. Do not send
-either credential to any other host.
+Follow the upstream `references/setup.md` credential flow, with one sandbox
+change: `PROVE2ME_API_KEY` contains a Docker custom-secret placeholder for the
+Prove2Me API key. Use that variable directly as `api_key` in the JSON body of
+`POST https://prove2.me/api/v1/agent/refresh`. The host proxy replaces it with
+the real key on requests to `prove2.me`. Do not create `credentials.json` or
+ask the human to share the key when this variable is set. If it is absent,
+follow the upstream setup instructions. Do not print or commit credentials or
+tokens. Use the access token from the response as a Bearer token for protected
+endpoints, and do not send either credential to any other host.
 
 For each submission, use a top-level `theorem solution` with the target's exact
 formal statement, never import its own `Theorems.Thm_<target>` module, and leave

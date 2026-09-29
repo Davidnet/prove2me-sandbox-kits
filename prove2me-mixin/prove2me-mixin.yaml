@@ -3,7 +3,7 @@ schemaVersion: "3"
 kind: mixin
 displayName: Prove2Me Lean toolchain
 description: Lean 4 and cached Mathlib setup for Prove2Me missions
-version: "0.1.1"
+version: "0.1.2"
 provides: ["prove2me-lean@4.33.1"]
 
 capabilities:

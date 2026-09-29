@@ -1,10 +1,10 @@
 # Prove2Me Sandbox Kits
 
-This repository contains a small v3 Lean mixin and two v3 workloads. The mixin
-pins Prove2Me's default Lean 4 environment. During first sandbox creation, its
-install hook downloads Lean and Mathlib's prebuilt `.olean` cache and runs a
-smoke test. The shell workload is for local verification; the Claude Code
-workload runs the agent.
+This repository contains a v3 Lean mixin and a local shell workload. For Claude
+Code, use the mixin with [Docker's v3 Claude workload](https://hub.docker.com/r/docker/sbx-kit-claude).
+The mixin pins Prove2Me's default Lean 4 environment. During first sandbox
+creation, its install hook downloads Lean and Mathlib's prebuilt `.olean` cache
+and runs a smoke test.
 
 The workspace snapshot and Mathlib revision are pinned in
 `prove2me-mixin/bootstrap.sh`. A target theorem may use a different
@@ -51,79 +51,57 @@ runtime. A plain `docker run` of the image does not apply it.
 
 ## Credentials and mission work
 
-Set the Anthropic service secret on the host, then create the sandbox:
+Set up both credentials on the host, then create the sandbox. The Prove2Me key
+is stored as a [Docker custom secret](https://docs.docker.com/ai/sandboxes/configuration/credentials/#custom-secrets)
+scoped to `p2m-claude` and `prove2.me`:
 
-```sh
+```bash
 sbx secret set anthropic
-sbx create --name p2m-claude docker.io/davidnet/prove2me-claude-set:0.1.1
+(
+  read -rsp 'Prove2Me API key: ' P2M_KEY || exit 1
+  printf '\n'
+  sbx secret set-custom --sandbox p2m-claude --host prove2.me \
+    --env PROVE2ME_API_KEY --placeholder 'p2m_{rand}' --value "$P2M_KEY"
+) && sbx create --name p2m-claude docker.io/docker/sbx-kit-claude:2.1.267 \
+  --kit docker.io/davidnet/prove2me-mixin:0.1.2
 ```
 
-Prove2Me's `POST /agent/refresh` takes its `p2m_` API key in a JSON body.
-Docker's custom-secret proxy substitutes secrets in request headers, so it
-cannot supply that body field. Follow Prove2Me's
-[credential setup](https://github.com/prove2me/prove2me_workspace/blob/main/references/setup.md)
-inside the sandbox. To enter an existing API key without placing it in shell
-history, open `sbx exec -it p2m-claude bash` and run:
+If `p2m-claude` already exists from an earlier version, use a new sandbox name
+in the `--sandbox`, `--name`, and `sbx run` commands; an existing sandbox keeps
+its original kit version.
+
+Run `sbx run --name p2m-claude` to start the agent. The sandbox receives a
+`p2m_` placeholder in `PROVE2ME_API_KEY`, not the real key. The agent can use
+that variable directly as `api_key` in the JSON body of
+`POST https://prove2.me/api/v1/agent/refresh`. Docker's proxy replaces the
+placeholder on the outbound request to `prove2.me`. This avoids creating a
+`credentials.json` file. Ask the agent to confirm refresh succeeds before
+mission work.
+
+The `--value` command avoids shell history, but the real key can briefly appear
+in the host process list. If it is in 1Password or AWS Secrets Manager, use
+Docker's `--ref` option instead.
+
+For local source development, run Docker's v3 Claude workload with the mixin:
 
 ```sh
-cd /home/agent/prove2me_workspace
-umask 077
-read -rsp 'Prove2Me API key: ' P2M_KEY; printf '\n'
-jq -n --arg api_key "$P2M_KEY" '{api_key: $api_key}' > credentials.json
-unset P2M_KEY
+sbx create --name p2m-claude docker.io/docker/sbx-kit-claude:2.1.267 \
+  --kit ./prove2me-mixin
 ```
 
-The upstream workspace ignores `credentials.json` in Git. Keep it inside the
-sandbox and never copy it into this repository. Confirm `/agent/refresh`
-succeeds before mission work, then start the agent with
-`sbx run --name p2m-claude`. The key is stored in the sandbox, so use a dedicated sandbox for
-trusted agents.
+To select another Claude model, pass `-- --model opus` (or `haiku`) to `sbx run`.
 
-For local source development, create the sandbox with
-`sbx create --name p2m-claude ./prove2me-claude --kit ./prove2me-mixin`.
+## Published kits
 
-To select another Claude model, add
-`--kit-arg prove2me-claude.model=opus` (or `haiku`) to `sbx run`.
+`docker.io/davidnet/prove2me-mixin:0.1.2` is published for both `linux/amd64`
+and `linux/arm64`. The initial `sbx create` downloads and installs the pinned
+Lean workspace into that sandbox. The published Prove2Me `SKILL.md` in the
+workspace is the source of truth for API details and submission rules.
 
-## Published v0.1.1
-
-The following Docker Hub images are published for both `linux/amd64` and
-`linux/arm64`:
-
-- `docker.io/davidnet/prove2me-mixin:0.1.1` — Lean setup for other workloads.
-- `docker.io/davidnet/prove2me-claude:0.1.1` — Claude workload component.
-- `docker.io/davidnet/prove2me-claude-set:0.1.1` — ready-to-run combination.
-
-After creating the sandbox and setting up its Prove2Me key as described above,
-run the published set with:
-
-```sh
-sbx run docker.io/davidnet/prove2me-claude-set:0.1.1 --name p2m-claude
-```
-
-The first run downloads and installs the pinned Lean workspace into that
-sandbox. To use the mixin with a different agent, run, for example,
-`sbx run codex --kit docker.io/davidnet/prove2me-mixin:0.1.1`.
-
-The published Prove2Me `SKILL.md` in the workspace is the source of truth for
-API details and submission rules. After publishing both v3 images to a
-registry, generate and build a kit set using their published references:
+To publish your own mixin:
 
 ```sh
 docker buildx build -f prove2me-mixin/prove2me-mixin.yaml \
-  -t docker.io/YOUR_NAMESPACE/prove2me-mixin:0.1.1 \
+  -t docker.io/YOUR_NAMESPACE/prove2me-mixin:0.1.2 \
   --push prove2me-mixin
-docker buildx build -f prove2me-claude/prove2me-claude.yaml \
-  -t docker.io/YOUR_NAMESPACE/prove2me-claude:0.1.1 \
-  --push prove2me-claude
-bash prove2me-claude-set/generate.sh \
-  docker.io/YOUR_NAMESPACE/prove2me-claude:0.1.1 \
-  docker.io/YOUR_NAMESPACE/prove2me-mixin:0.1.1
-docker buildx build -f prove2me-claude-set/prove2me-claude-set.yaml \
-  -t docker.io/YOUR_NAMESPACE/prove2me-claude-set:0.1.1 \
-  --push prove2me-claude-set
 ```
-
-Docker requires published registry references for a set's `kits:` entries;
-local directories work directly with `sbx run ... --kit ...`. The generated
-descriptor is not committed because its references depend on your registry.
